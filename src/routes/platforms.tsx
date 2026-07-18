@@ -1,19 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import {
-  Eye,
-  Clock,
-  Share2,
-  Percent,
-  Bookmark,
-  Users,
-  Radar,
-  PlaySquare,
-  UserPlus,
-  Facebook,
-  Instagram,
-  Youtube,
-} from "lucide-react";
+import { Eye, Clock, Share2, Percent, Bookmark, Users, Radar, SquarePlay as PlaySquare, UserPlus, Facebook, Instagram, Youtube } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricCard } from "@/components/dashboard/MetricCard";

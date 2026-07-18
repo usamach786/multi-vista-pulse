@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BarChart3, Layers, Settings2, Sparkles } from "lucide-react";
+import { ChartBar as BarChart3, Layers, Settings2, Sparkles } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
