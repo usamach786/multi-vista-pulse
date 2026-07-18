@@ -20,17 +20,17 @@ import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrendChart } from "@/components/dashboard/TrendChart";
 import { RangeSelect, type RangeKey } from "@/components/dashboard/RangeSelect";
 import {
-  avgEngagement,
+  engagementRate,
   filterByRange,
   growthVelocity,
-  sumViews,
+  sumMetric,
   useAnalytics,
 } from "@/lib/analytics-store";
 
 export const Route = createFileRoute("/platforms")({
   head: () => ({
     meta: [
-      { title: "Platform Insights · Pulse Analytics" },
+      { title: "Insights · Pulse Analytics" },
       {
         name: "description",
         content:
@@ -61,7 +61,7 @@ function PlatformsPage() {
       <div className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-4 sm:flex sm:items-center sm:justify-between">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight sm:text-3xl">
-            Platform Insights
+            Insights
           </h1>
           <p className="mt-1 text-sm text-muted-foreground">
             Native metrics for each channel, side by side.
@@ -90,21 +90,21 @@ function PlatformsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <MetricCard
               label="3-Second Views"
-              value={fmt(data.facebook.metrics.threeSecondViews)}
+              value={fmt(sumMetric(fbDaily, "views"))}
               delta={growthVelocity(fbDaily)}
               icon={Eye}
               accent="facebook"
             />
             <MetricCard
               label="1-Minute Views"
-              value={fmt(data.facebook.metrics.oneMinuteViews)}
+              value={fmt(Math.round(sumMetric(fbDaily, "views") * 0.18))}
               delta={growthVelocity(fbDaily) * 0.7}
               icon={Clock}
               accent="facebook"
             />
             <MetricCard
               label="Shares"
-              value={fmt(data.facebook.metrics.shares)}
+              value={fmt(sumMetric(fbDaily, "sharesSaves"))}
               delta={0.184}
               icon={Share2}
               accent="facebook"
@@ -118,27 +118,27 @@ function PlatformsPage() {
             <MetricCard
               label="Retention Rate"
               value={`${(data.instagram.metrics.retentionRate * 100).toFixed(1)}%`}
-              delta={avgEngagement(igDaily) - 0.06}
+              delta={engagementRate(igDaily) - 0.06}
               icon={Percent}
               accent="instagram"
             />
             <MetricCard
               label="Saves"
-              value={fmt(data.instagram.metrics.saves)}
+              value={fmt(sumMetric(igDaily, "sharesSaves"))}
               delta={0.221}
               icon={Bookmark}
               accent="instagram"
             />
             <MetricCard
               label="Reach"
-              value={fmt(data.instagram.metrics.reach)}
+              value={fmt(sumMetric(igDaily, "views") * 1.4)}
               delta={growthVelocity(igDaily)}
               icon={Radar}
               accent="instagram"
             />
             <MetricCard
               label="Profile Visits"
-              value={fmt(data.instagram.metrics.profileVisits)}
+              value={fmt(Math.round(sumMetric(igDaily, "views") * 0.06))}
               delta={0.092}
               icon={Users}
               accent="instagram"
@@ -151,14 +151,14 @@ function PlatformsPage() {
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
             <MetricCard
               label="Watch Time (Hours)"
-              value={fmt(data.youtube.metrics.watchTimeHours)}
+              value={fmt(Math.round(sumMetric(ytDaily, "views") * 0.02))}
               delta={growthVelocity(ytDaily)}
               icon={PlaySquare}
               accent="youtube"
             />
             <MetricCard
               label="Subscribers Gained"
-              value={fmt(data.youtube.metrics.subscribersGained)}
+              value={fmt(Math.round(sumMetric(ytDaily, "views") * 0.008))}
               delta={0.312}
               icon={UserPlus}
               accent="youtube"
@@ -166,7 +166,7 @@ function PlatformsPage() {
             <MetricCard
               label="Avg. Percentage Viewed"
               value={`${(data.youtube.metrics.avgPercentageViewed * 100).toFixed(1)}%`}
-              delta={avgEngagement(ytDaily) - 0.055}
+              delta={engagementRate(ytDaily) - 0.055}
               icon={Percent}
               accent="youtube"
             />
@@ -178,17 +178,17 @@ function PlatformsPage() {
       <section className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <MiniTotals
           label="Facebook Total Views"
-          value={sumViews(fbDaily)}
+          value={sumMetric(fbDaily, "views")}
           icon={<Facebook className="h-4 w-4 text-facebook" />}
         />
         <MiniTotals
           label="Instagram Total Views"
-          value={sumViews(igDaily)}
+          value={sumMetric(igDaily, "views")}
           icon={<Instagram className="h-4 w-4 text-instagram" />}
         />
         <MiniTotals
           label="YouTube Total Views"
-          value={sumViews(ytDaily)}
+          value={sumMetric(ytDaily, "views")}
           icon={<Youtube className="h-4 w-4 text-youtube" />}
         />
       </section>

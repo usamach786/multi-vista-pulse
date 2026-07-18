@@ -1,11 +1,13 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from "react";
 
 export type Platform = "facebook" | "instagram" | "youtube";
+export type MetricKey = "views" | "engagement" | "sharesSaves";
 
 export interface DailyPoint {
   date: string; // ISO yyyy-mm-dd
   views: number;
-  engagement: number; // 0-1
+  engagement: number; // likes + comments
+  sharesSaves: number; // shares (FB/YT) + saves (IG)
 }
 
 export interface FacebookMetrics {
@@ -26,18 +28,9 @@ export interface YoutubeMetrics {
 }
 
 export interface PlatformData {
-  facebook: {
-    metrics: FacebookMetrics;
-    daily: DailyPoint[];
-  };
-  instagram: {
-    metrics: InstagramMetrics;
-    daily: DailyPoint[];
-  };
-  youtube: {
-    metrics: YoutubeMetrics;
-    daily: DailyPoint[];
-  };
+  facebook: { label: string; accent: string; metrics: FacebookMetrics; daily: DailyPoint[] };
+  instagram: { label: string; accent: string; metrics: InstagramMetrics; daily: DailyPoint[] };
+  youtube: { label: string; accent: string; metrics: YoutubeMetrics; daily: DailyPoint[] };
 }
 
 export interface ImportRecord {
@@ -48,36 +41,78 @@ export interface ImportRecord {
   importedAt: string;
 }
 
-function makeDaily(days: number, baseline: number, spike: number, engagementBase: number): DailyPoint[] {
+function isoDaysAgo(i: number): string {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - i);
+  return d.toISOString().slice(0, 10);
+}
+
+function makeRng(seed: number) {
+  let s = seed >>> 0;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 0xffffffff;
+  };
+}
+
+interface SeriesSpec {
+  baseline: number;
+  spike: number;
+  engagementRatio: number;
+  sharesRatio: number;
+  spikeDay: number;
+  spikeWidth: number;
+  seed: number;
+}
+
+function buildSeries(days: number, spec: SeriesSpec): DailyPoint[] {
+  const rng = makeRng(spec.seed);
   const out: DailyPoint[] = [];
-  const today = new Date();
-  for (let i = days - 1; i >= 0; i--) {
-    const d = new Date(today);
-    d.setDate(today.getDate() - i);
-    // scaling curve: baseline -> spike over time
-    const t = (days - 1 - i) / (days - 1 || 1);
-    const trend = baseline + (spike - baseline) * Math.pow(t, 1.6);
-    const wobble = Math.sin(i * 1.3) * baseline * 0.15;
-    const noise = (Math.sin(i * 3.7) + Math.cos(i * 2.1)) * baseline * 0.1;
-    const views = Math.max(0, Math.round(trend + wobble + noise));
-    const engagement = Math.min(0.35, Math.max(0.01, engagementBase + Math.sin(i * 0.9) * 0.015));
-    out.push({ date: d.toISOString().slice(0, 10), views, engagement });
+  for (let i = 0; i < days; i++) {
+    const t = i / (days - 1);
+    const trend = spec.baseline + (spec.spike * 0.35 - spec.baseline) * Math.pow(t, 1.4);
+    const dist = (i - spec.spikeDay) / spec.spikeWidth;
+    const spikeBoost = spec.spike * Math.exp(-(dist * dist)) * 0.65;
+    const seasonal = Math.sin((i / 7) * Math.PI * 2) * spec.baseline * 0.08;
+    const noise = (rng() - 0.5) * spec.baseline * 0.12;
+    const views = Math.max(0, Math.round(trend + spikeBoost + seasonal + noise));
+    const engagement = Math.round(views * (spec.engagementRatio + (rng() - 0.5) * 0.01));
+    const sharesSaves = Math.round(views * (spec.sharesRatio + (rng() - 0.5) * 0.004));
+    out.push({ date: isoDaysAgo(days - 1 - i), views, engagement, sharesSaves });
   }
   return out;
 }
 
+const DAYS = 30;
+
 const initialData: PlatformData = {
   facebook: {
-    metrics: { threeSecondViews: 482_310, oneMinuteViews: 87_450, shares: 12_940 },
-    daily: makeDaily(30, 8_000, 42_000, 0.048),
+    label: "Facebook",
+    accent: "var(--facebook)",
+    metrics: { threeSecondViews: 71_200, oneMinuteViews: 12_840, shares: 3_910 },
+    daily: buildSeries(DAYS, {
+      baseline: 1_400, spike: 3_200, engagementRatio: 0.062, sharesRatio: 0.018,
+      spikeDay: 21, spikeWidth: 3.2, seed: 20240711,
+    }),
   },
   instagram: {
-    metrics: { retentionRate: 0.62, saves: 24_180, reach: 612_400, profileVisits: 38_720 },
-    daily: makeDaily(30, 12_000, 68_000, 0.081),
+    label: "Instagram",
+    accent: "var(--instagram)",
+    metrics: { retentionRate: 0.62, saves: 5_240, reach: 118_400, profileVisits: 7_410 },
+    daily: buildSeries(DAYS, {
+      baseline: 1_700, spike: 3_900, engagementRatio: 0.084, sharesRatio: 0.024,
+      spikeDay: 23, spikeWidth: 3.0, seed: 81205,
+    }),
   },
   youtube: {
-    metrics: { watchTimeHours: 9_842, subscribersGained: 4_310, avgPercentageViewed: 0.54 },
-    daily: makeDaily(30, 5_000, 55_000, 0.065),
+    label: "YouTube",
+    accent: "var(--youtube)",
+    metrics: { watchTimeHours: 312, subscribersGained: 142, avgPercentageViewed: 0.54 },
+    daily: buildSeries(DAYS, {
+      baseline: 18, spike: 64, engagementRatio: 0.05, sharesRatio: 0.012,
+      spikeDay: 19, spikeWidth: 3.5, seed: 419,
+    }),
   },
 };
 
@@ -97,7 +132,6 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
   const applyImport: AnalyticsContextValue["applyImport"] = (platform, rows, fileName) => {
     if (!rows.length) return 0;
 
-    // Try to find a date column and a views/impressions column
     const findKey = (row: Record<string, string>, keys: string[]) => {
       const lowerKeys = Object.keys(row).map((k) => k.toLowerCase());
       for (const target of keys) {
@@ -110,22 +144,24 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
     const first = rows[0];
     const dateKey = findKey(first, ["date", "day", "publish"]);
     const viewsKey = findKey(first, ["views", "impression", "plays", "reach"]);
-    const engKey = findKey(first, ["engagement", "rate", "retention"]);
+    const engKey = findKey(first, ["engagement", "likes", "comments", "rate", "retention"]);
+    const sharesKey = findKey(first, ["shares", "saves"]);
+
+    const num = (v: string | undefined) =>
+      Math.max(0, Number((v || "0").toString().replace(/[^0-9.-]/g, "")) || 0);
 
     const daily: DailyPoint[] = rows
       .map((r, i) => {
         const rawDate = dateKey ? r[dateKey] : "";
         const d = rawDate ? new Date(rawDate) : new Date(Date.now() - (rows.length - i) * 86_400_000);
         const iso = isNaN(d.getTime()) ? new Date().toISOString().slice(0, 10) : d.toISOString().slice(0, 10);
-        const viewsRaw = viewsKey ? r[viewsKey] : "";
-        const views = Number((viewsRaw || "0").toString().replace(/[^0-9.-]/g, "")) || 0;
-        const engRaw = engKey ? r[engKey] : "";
-        const engagement = engRaw
-          ? Math.min(1, Number(engRaw.toString().replace(/[^0-9.]/g, "")) / (engRaw.includes("%") ? 100 : 1))
-          : 0.05;
-        return { date: iso, views, engagement };
+        return {
+          date: iso,
+          views: num(viewsKey ? r[viewsKey] : ""),
+          engagement: num(engKey ? r[engKey] : ""),
+          sharesSaves: num(sharesKey ? r[sharesKey] : ""),
+        };
       })
-      .filter((p) => p.views >= 0)
       .sort((a, b) => a.date.localeCompare(b.date));
 
     if (!daily.length) return 0;
@@ -136,31 +172,33 @@ export function AnalyticsProvider({ children }: { children: ReactNode }) {
       const next: PlatformData = { ...prev };
       if (platform === "facebook") {
         next.facebook = {
+          ...prev.facebook,
           daily,
           metrics: {
             threeSecondViews: totalViews,
             oneMinuteViews: Math.round(totalViews * 0.18),
-            shares: Math.round(totalViews * 0.025),
+            shares: daily.reduce((s, p) => s + p.sharesSaves, 0),
           },
         };
       } else if (platform === "instagram") {
-        const avgEng = daily.reduce((s, p) => s + p.engagement, 0) / daily.length;
         next.instagram = {
+          ...prev.instagram,
           daily,
           metrics: {
-            retentionRate: Math.min(0.95, avgEng * 8),
-            saves: Math.round(totalViews * 0.04),
+            retentionRate: 0.62,
+            saves: daily.reduce((s, p) => s + p.sharesSaves, 0),
             reach: Math.round(totalViews * 1.4),
             profileVisits: Math.round(totalViews * 0.06),
           },
         };
       } else {
         next.youtube = {
+          ...prev.youtube,
           daily,
           metrics: {
             watchTimeHours: Math.round(totalViews * 0.02),
             subscribersGained: Math.round(totalViews * 0.008),
-            avgPercentageViewed: Math.min(0.95, daily.reduce((s, p) => s + p.engagement, 0) / daily.length * 6),
+            avgPercentageViewed: 0.54,
           },
         };
       }
@@ -191,26 +229,58 @@ export function useAnalytics() {
   return ctx;
 }
 
-// helpers
-export function sumViews(daily: DailyPoint[]) {
-  return daily.reduce((s, p) => s + p.views, 0);
+// ---------- aggregation helpers ----------
+
+export function sumMetric(daily: DailyPoint[], metric: MetricKey): number {
+  return daily.reduce((s, p) => s + p[metric], 0);
 }
 
-export function avgEngagement(daily: DailyPoint[]) {
-  if (!daily.length) return 0;
-  return daily.reduce((s, p) => s + p.engagement, 0) / daily.length;
-}
-
-export function growthVelocity(daily: DailyPoint[]) {
+export function growthVelocity(daily: DailyPoint[]): number {
   if (daily.length < 2) return 0;
   const half = Math.floor(daily.length / 2);
-  const first = daily.slice(0, half).reduce((s, p) => s + p.views, 0) / half;
-  const second = daily.slice(half).reduce((s, p) => s + p.views, 0) / (daily.length - half);
+  const first = daily.slice(0, half).reduce((s, p) => s + p.views, 0) / Math.max(1, half);
+  const second = daily.slice(half).reduce((s, p) => s + p.views, 0) / Math.max(1, daily.length - half);
   if (!first) return 0;
   return (second - first) / first;
+}
+
+export function engagementRate(daily: DailyPoint[]): number {
+  const views = sumMetric(daily, "views");
+  const eng = sumMetric(daily, "engagement");
+  if (!views) return 0;
+  return eng / views;
 }
 
 export function filterByRange(daily: DailyPoint[], days: number | "all") {
   if (days === "all") return daily;
   return daily.slice(-days);
 }
+
+export function mergeDaily(series: DailyPoint[][]): DailyPoint[] {
+  const map = new Map<string, DailyPoint>();
+  for (const s of series) {
+    for (const p of s) {
+      const existing = map.get(p.date);
+      if (existing) {
+        existing.views += p.views;
+        existing.engagement += p.engagement;
+        existing.sharesSaves += p.sharesSaves;
+      } else {
+        map.set(p.date, { ...p });
+      }
+    }
+  }
+  return Array.from(map.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+export const PLATFORM_LABELS: Record<Platform, string> = {
+  facebook: "Facebook",
+  instagram: "Instagram",
+  youtube: "YouTube",
+};
+
+export const METRIC_LABELS: Record<MetricKey, string> = {
+  views: "Views",
+  engagement: "Engagement (Likes/Comments)",
+  sharesSaves: "Shares/Saves",
+};

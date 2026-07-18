@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { BarChart3, Layers, Upload, Sparkles } from "lucide-react";
+import { BarChart3, Layers, Settings2, Sparkles } from "lucide-react";
 import {
   Sidebar,
   SidebarContent,
@@ -14,8 +14,8 @@ import {
 
 const items = [
   { title: "Overview", url: "/", icon: BarChart3 },
-  { title: "Platform Insights", url: "/platforms", icon: Layers },
-  { title: "Data Manager", url: "/data", icon: Upload },
+  { title: "Insights", url: "/platforms", icon: Layers },
+  { title: "Export Settings", url: "/data", icon: Settings2 },
 ];
 
 export function AppSidebar() {
