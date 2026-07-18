@@ -13,15 +13,14 @@ import {
 } from "@/components/ui/select";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrendChart } from "@/components/dashboard/TrendChart";
-import { RangeSelect, type RangeKey } from "@/components/dashboard/RangeSelect";
+import { DateRangePicker, type DateRangeValue } from "@/components/dashboard/DateRangePicker";
 import { LiveBadge } from "@/components/dashboard/LiveBadge";
 import { MainChart, type ChartSeries } from "@/components/dashboard/MainChart";
 import {
   engagementRate,
-  filterByRange,
+  filterByDateRange,
   growthVelocity,
   mergeDaily,
-  platformSummary,
   sumMetric,
   useAnalytics,
   type MetricKey,
@@ -61,10 +60,15 @@ const METRIC_ITEMS: { value: MetricKey; label: string }[] = [
   { value: "sharesSaves", label: "Shares/Saves" },
 ];
 
-function seriesForFilter(data: PlatformData, filter: PlatformFilter, days: 7 | 30 | "all") {
-  const fb = filterByRange(data.facebook.daily, days);
-  const ig = filterByRange(data.instagram.daily, days);
-  const yt = filterByRange(data.youtube.daily, days);
+function seriesForFilter(
+  data: PlatformData,
+  filter: PlatformFilter,
+  start: Date | undefined,
+  end: Date | undefined,
+) {
+  const fb = filterByDateRange(data.facebook.daily, start, end);
+  const ig = filterByDateRange(data.instagram.daily, start, end);
+  const yt = filterByDateRange(data.youtube.daily, start, end);
   if (filter === "all") return { fb, ig, yt, all: mergeDaily([fb, ig, yt]) };
   if (filter === "facebook") return { fb, ig: [], yt: [], all: fb };
   if (filter === "instagram") return { fb: [], ig, yt: [], all: ig };
@@ -73,14 +77,17 @@ function seriesForFilter(data: PlatformData, filter: PlatformFilter, days: 7 | 3
 
 function OverviewPage() {
   const { data } = useAnalytics();
-  const [range, setRange] = useState<RangeKey>("30");
+  const [dateRange, setDateRange] = useState<DateRangeValue>({
+    preset: "30",
+    start: new Date(Date.now() - 29 * 86_400_000),
+    end: new Date(),
+  });
   const [platformFilter, setPlatformFilter] = useState<PlatformFilter>("all");
   const [metric, setMetric] = useState<MetricKey>("views");
-  const days = range === "all" ? "all" : (Number(range) as 7 | 30);
 
   const filtered = useMemo(
-    () => seriesForFilter(data, platformFilter, days),
-    [data, platformFilter, days],
+    () => seriesForFilter(data, platformFilter, dateRange.start, dateRange.end),
+    [data, platformFilter, dateRange.start, dateRange.end],
   );
 
   const totalViews = sumMetric(filtered.all, "views");
@@ -116,10 +123,14 @@ function OverviewPage() {
     toast.success(`Exported ${rows} rows`, { description: fileName });
   };
 
+  const rangeLabel =
+    dateRange.start && dateRange.end
+      ? `${dateRange.start.toLocaleDateString(undefined, { month: "short", day: "numeric" })} – ${dateRange.end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+      : "All time";
   const subtitle =
     platformFilter === "all"
-      ? "Facebook + Instagram + YouTube"
-      : `${PLATFORM_FILTER_LABELS[platformFilter]} · last ${days === "all" ? "all" : days} days`;
+      ? `Facebook + Instagram + YouTube · ${rangeLabel}`
+      : `${PLATFORM_FILTER_LABELS[platformFilter]} · ${rangeLabel}`;
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 md:p-6 lg:p-8">
@@ -131,7 +142,7 @@ function OverviewPage() {
           </div>
           <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
         </div>
-        <RangeSelect value={range} onChange={setRange} />
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
       <section className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

@@ -5,10 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { TrendChart } from "@/components/dashboard/TrendChart";
-import { RangeSelect, type RangeKey } from "@/components/dashboard/RangeSelect";
+import { DateRangePicker, type DateRangeValue } from "@/components/dashboard/DateRangePicker";
 import {
   engagementRate,
-  filterByRange,
+  filterByDateRange,
   growthVelocity,
   sumMetric,
   useAnalytics,
@@ -36,12 +36,24 @@ function fmt(n: number) {
 
 function PlatformsPage() {
   const { data } = useAnalytics();
-  const [range, setRange] = useState<RangeKey>("30");
-  const days = range === "all" ? "all" : (Number(range) as 7 | 30);
+  const [dateRange, setDateRange] = useState<DateRangeValue>({
+    preset: "30",
+    start: new Date(Date.now() - 29 * 86_400_000),
+    end: new Date(),
+  });
 
-  const fbDaily = useMemo(() => filterByRange(data.facebook.daily, days), [data, days]);
-  const igDaily = useMemo(() => filterByRange(data.instagram.daily, days), [data, days]);
-  const ytDaily = useMemo(() => filterByRange(data.youtube.daily, days), [data, days]);
+  const fbDaily = useMemo(
+    () => filterByDateRange(data.facebook.daily, dateRange.start, dateRange.end),
+    [data, dateRange.start, dateRange.end],
+  );
+  const igDaily = useMemo(
+    () => filterByDateRange(data.instagram.daily, dateRange.start, dateRange.end),
+    [data, dateRange.start, dateRange.end],
+  );
+  const ytDaily = useMemo(
+    () => filterByDateRange(data.youtube.daily, dateRange.start, dateRange.end),
+    [data, dateRange.start, dateRange.end],
+  );
 
   return (
     <div className="mx-auto max-w-[1400px] p-4 md:p-6 lg:p-8">
@@ -54,7 +66,7 @@ function PlatformsPage() {
             Native metrics for each channel, side by side.
           </p>
         </div>
-        <RangeSelect value={range} onChange={setRange} />
+        <DateRangePicker value={dateRange} onChange={setDateRange} />
       </div>
 
       <Tabs defaultValue="facebook" className="mt-6">

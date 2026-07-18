@@ -256,6 +256,21 @@ export function filterByRange(daily: DailyPoint[], days: number | "all") {
   return daily.slice(-days);
 }
 
+export function filterByDateRange(
+  daily: DailyPoint[],
+  start: Date | undefined,
+  end: Date | undefined,
+): DailyPoint[] {
+  if (!start && !end) return daily;
+  const startStr = start ? start.toISOString().slice(0, 10) : undefined;
+  const endStr = end ? end.toISOString().slice(0, 10) : undefined;
+  return daily.filter((p) => {
+    if (startStr && p.date < startStr) return false;
+    if (endStr && p.date > endStr) return false;
+    return true;
+  });
+}
+
 export function mergeDaily(series: DailyPoint[][]): DailyPoint[] {
   const map = new Map<string, DailyPoint>();
   for (const s of series) {
